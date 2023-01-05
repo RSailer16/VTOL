@@ -132,6 +132,126 @@ float Kd_yaw = 0.00015;   //Yaw D-gain (be careful when increasing too high, mot
 
 //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
+void IMUinit();
+void getIMUdata();
+void calculate_IMU_error();
+void calibrateAttitude();
+void correctRollPitch();
+void Madgwick(float gx, float gy, float gz, float ax, float ay, float az, float invSampleFreq);
+void getDesState();
+void controlANGLE();
+void controlANGLE2();
+void controlRATE();
+void controlMixer();
+void scaleCommands();
+void getCommands();
+void failSafe();
+void commandMotors();
+void throttleCut();
+void loopRate(int freq);
+void loopBlink();
+void setupBlink(int numBlinks,int upTime, int downTime);
+void printRadioData();
+void printDesiredState();
+void printGyroData();
+void printAccelData();
+void printRollPitchYaw();
+void printPIDoutput();
+void printMotorCommands();
+void printLoopRate();
+float invSqrt(float x);
+
+//RADIOS
+unsigned long rising_edge_start_1, rising_edge_start_2, rising_edge_start_3, rising_edge_start_4, rising_edge_start_5, rising_edge_start_6; 
+unsigned long channel_1_raw, channel_2_raw, channel_3_raw, channel_4_raw, channel_5_raw, channel_6_raw;
+int ppm_counter = 0;
+unsigned long time_ms = 0;
+
+//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+//INTERRUPT SERVICE ROUTINES 
+
+void getPPM() {
+  unsigned long dt_ppm;
+  int trig = digitalRead(PPM_Pin);
+  
+  if (trig==1) { //only care about rising edge
+    dt_ppm = micros() - time_ms;
+    time_ms = micros();
+
+    if (dt_ppm > 5000) { //ms
+      ppm_counter = 0;
+    }
+  
+    if (ppm_counter == 1) {
+      channel_2_raw = dt_ppm;
+    }
+  
+    if (ppm_counter == 2) {
+      channel_3_raw = dt_ppm;
+    }
+  
+    if (ppm_counter == 3) {
+      channel_1_raw = dt_ppm;
+    }
+  
+    if (ppm_counter == 4) {
+      channel_4_raw = dt_ppm;
+    }
+  
+    if (ppm_counter == 5) {
+      channel_6_raw = dt_ppm;
+    }
+  
+    if (ppm_counter == 6) {
+      channel_5_raw = dt_ppm;
+    }
+    
+    ppm_counter = ppm_counter + 1;
+  }
+}
+
+void readPPM_setup(int pin) {
+  // DESCRIPTION: Initialize software interrupts on radio channel pins
+  // Declare interrupt pins
+  pinMode(pin, INPUT_PULLUP);
+  delay(20);
+  //Attach interrupt and point to corresponding functions
+  attachInterrupt(digitalPinToInterrupt(pin), getPPM, CHANGE);
+}
+
+
+
+
+unsigned long getRadioPWM(int ch_num) {
+  //DESCRIPTION: Get current radio commands from interrupt routines 
+  unsigned long returnPWM = 0;
+  
+  if (ch_num == 1) {
+    returnPWM = channel_1_raw;
+  }
+  else if (ch_num == 2) {
+    returnPWM = channel_2_raw;
+  }
+  else if (ch_num == 3) {
+    returnPWM = channel_3_raw;
+  }
+  else if (ch_num == 4) {
+    returnPWM = channel_4_raw;
+  }
+  else if (ch_num == 5) {
+    returnPWM = channel_5_raw;
+  }
+  else if (ch_num == 6) {
+    returnPWM = channel_6_raw;
+  }
+  
+  return returnPWM;
+}
+
+
+
+
 //FUNCTIONS
 
 void IMUinit() {
@@ -961,7 +1081,7 @@ void setup() {
 
   //Initialize radio communication
   //readPWM_setup(ch1Pin, ch2Pin, ch3Pin, ch4Pin, ch5Pin, ch6Pin); //6 channel pwm receiver
-  readPPM_setup(PPM_Pin) //uncomment and assign pin to PPM_Pin in setup if using ppm receiver
+  readPPM_setup(PPM_Pin); //uncomment and assign pin to PPM_Pin in setup if using ppm receiver
 
   //Set radio channels to default (safe) values
   channel_1_pwm = channel_1_fs;
