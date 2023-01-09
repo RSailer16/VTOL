@@ -53,8 +53,11 @@ const int m3Pin = 8;
 const int m4Pin = 9;
 //PWM outputs:
 const int servo1Pin = 6;
+const int servo2Pin = 5;
+const int servo3Pin = 4;
 PWMServo servo1;  //create servo object to control a servo
-
+PWMServo servo2;
+PWMServo servo3;
 //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 //DECLARE GLOBAL VARIABLES
@@ -89,8 +92,8 @@ float error_roll, error_roll_prev, roll_des_prev, integral_roll, integral_roll_i
 float error_pitch, error_pitch_prev, pitch_des_prev, integral_pitch, integral_pitch_il, integral_pitch_ol, integral_pitch_prev, integral_pitch_prev_il, integral_pitch_prev_ol, derivative_pitch, pitch_PID = 0;
 float error_yaw, error_yaw_prev, integral_yaw, integral_yaw_prev, derivative_yaw, yaw_PID = 0;
 //Mixer
-float m1_command_scaled, m2_command_scaled, m3_command_scaled, m4_command_scaled;
-int m1_command_PWM, m2_command_PWM, m3_command_PWM, m4_command_PWM;
+float m1_command_scaled, m2_command_scaled, m3_command_scaled, m4_command_scaled, s1_command_scaled, s2_command_scaled;
+int m1_command_PWM, m2_command_PWM, m3_command_PWM, m4_command_PWM, s1_command_PWM, s2_command_PWM;
 
 //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
@@ -735,11 +738,13 @@ void controlMixer() {
    */
   //Quad mixing
   //m1 = front left, m2 = front right, m3 = back right, m4 = back left
-  m1_command_scaled = thro_des - 0.01*pitch_PID + 0.01*roll_PID + 0.01*yaw_PID;
-  m2_command_scaled = thro_des - 0.01*pitch_PID - 0.01*roll_PID - 0.01*yaw_PID;
-  m3_command_scaled = thro_des + 0.01*pitch_PID - 0.01*roll_PID + 0.01*yaw_PID;
-  m4_command_scaled = thro_des + 0.01*pitch_PID + 0.01*roll_PID - 0.01*yaw_PID;
-  
+m1_command_scaled = thro_des + tilt_passthru*roll_PID - (1-tilt_passthru)*yaw_PID;// + (1-tilt_passthru)*roll_PID*0.2;
+m2_command_scaled = thro_des - tilt_passthru*roll_PID + (1-tilt_passthru)*yaw_PID;// - (1-tilt_passthru)*roll_PID*0.2;
+//0.5 is centered servo, 0 is zero throttle if connecting to ESC for conventional PWM, 1 is max throttle
+s1_command_scaled = (tilt_passthru*0.5) + 0.33 - tilt_passthru*pitch_PID + tilt_passthru*yaw_PID + (1-tilt_passthru) *roll_PID*4;
+s2_command_scaled = 1-((tilt_passthru*0.5) + 0.25 - tilt_passthru*pitch_PID - tilt_passthru*yaw_PID) + (1-tilt_passthru)*roll_PID*4;
+s3_command_scaled = 0.37 + 3*pitch_PID;
+
 }
 
 void scaleCommands() {
@@ -759,6 +764,10 @@ void scaleCommands() {
   m2_command_PWM = constrain(m2_command_PWM, 125, 250);
   m3_command_PWM = constrain(m3_command_PWM, 125, 250);
   m4_command_PWM = constrain(m4_command_PWM, 125, 250);
+  s1_command_PWM = s1_command_scaled*180;
+  s2_command_PWM = s2_command_scaled*180;
+  s1_command_PWM = constrain(s1_command_PWM, 0, 180);
+  s2_command_PWM = constrain(s2_command_PWM, 0, 180);
 }
 
 void getCommands() {
@@ -1073,7 +1082,8 @@ void setup() {
   pinMode(m3Pin, OUTPUT);
   pinMode(m4Pin, OUTPUT);
   servo1.attach(servo1Pin, 1000, 2000); //pin, min value, max value
-
+  servo2.attach(servo2Pin, 1000, 2000);
+  servo3.attach(servo3Pin, 1000, 2000);
   //Set built in LED to high to signal startup & not to disturb vehicle during IMU calibration
   digitalWrite(13, HIGH);
 
@@ -1104,7 +1114,7 @@ void setup() {
 
   //Arm servo channels
   servo1.write(90); //command servo angle from 0-180 degrees
-  
+  servo2.write(90);
   delay(20);
 
   //Arm motors
@@ -1129,7 +1139,7 @@ void loop() {
   loopBlink(); //looks cool
 
   //Print data at 100hz (uncomment one at a time for troubleshooting)
-  printRadioData(); //radio pwm values 
+  //printRadioData(); //radio pwm values 
   //printDesiredState(); //desired vehicle state commanded in either degrees or degrees/sec
   //printGyroData(); //prints filtered gyro data direct from IMU
   //printAccelData(); //prints filtered accelerometer data direct from IMU
@@ -1159,8 +1169,9 @@ void loop() {
 
   //Command actuators
   commandMotors(); //sends command pulses to each motor pin
-  servo1.write(90); //fixed for now, can add servo command variables similar to motors and assign desired values in controlMixer()
-    
+  // servo1.write(90); //fixed for now, can add servo command variables similar to motors and assign desired values in controlMixer()
+ servo1.write(s1_command_PWM);
+ servo2.write(s1_command_PWM);
   //Get vehicle commands for next loop iteration
   getCommands(); //pulls current available radio commands
   failSafe(); //prevent failures in event of bad receiver connection, defaults to failsafe values assigned in setup
