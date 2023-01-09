@@ -94,7 +94,10 @@ float error_yaw, error_yaw_prev, integral_yaw, integral_yaw_prev, derivative_yaw
 //Mixer
 float m1_command_scaled, m2_command_scaled, m3_command_scaled, m4_command_scaled, s1_command_scaled, s2_command_scaled, s3_command_scaled;
 int m1_command_PWM, m2_command_PWM, m3_command_PWM, m4_command_PWM, s1_command_PWM, s2_command_PWM, s3_command_PWM;
-
+float roll_passthru, pitch_passthru, yaw_passthru, tilt_passthru;
+float thro_des, roll_des, pitch_des, yaw_des;
+float s1 = 0.0;
+float s2 = 0.0;
 //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 //USER-SPECIFIED VARIABLES
@@ -738,12 +741,42 @@ void controlMixer() {
    */
   //Quad mixing
   //m1 = front left, m2 = front right, m3 = back right, m4 = back left
-m1_command_scaled = thro_des + tilt_passthru*roll_PID - (1-tilt_passthru)*yaw_PID;// + (1-tilt_passthru)*roll_PID*0.2;
-m2_command_scaled = thro_des - tilt_passthru*roll_PID + (1-tilt_passthru)*yaw_PID;// - (1-tilt_passthru)*roll_PID*0.2;
-//0.5 is centered servo, 0 is zero throttle if connecting to ESC for conventional PWM, 1 is max throttle
-s1_command_scaled = (tilt_passthru*0.5) + 0.33 - tilt_passthru*pitch_PID + tilt_passthru*yaw_PID + (1-tilt_passthru) *roll_PID*4;
-s2_command_scaled = 1-((tilt_passthru*0.5) + 0.25 - tilt_passthru*pitch_PID - tilt_passthru*yaw_PID) + (1-tilt_passthru)*roll_PID*4;
-s3_command_scaled = 0.37 + 3*pitch_PID;
+// Flight mode 1 (Hover)
+if (channel_6_pwm > 1700) {
+maxRoll = 50;
+maxPitch = 50;
+maxYaw = 50;
+m1_command_scaled = thro_des + roll_PID; //Left Motor
+m2_command_scaled = thro_des - roll_PID; //Right Motor
+s1_command_scaled = .5 + .1*pitch_PID + yaw_PID; //Left Servo
+s2_command_scaled = .5 - .1*pitch_PID + yaw_PID; //Right Servo
+s3_command_scaled = .5; //Tail Servo
+
+}
+
+// Flight mode 2 (Transition)
+if (channel_6_pwm < 1700 & channel_6_pwm > 1300) {
+maxRoll = 100;
+maxPitch = 100;
+maxYaw = 100;
+m1_command_scaled = thro_des + .3*yaw_PID;
+m2_command_scaled = thro_des - .3*yaw_PID;
+s1_command_scaled = .75 + roll_PID + .1*pitch_PID;
+s2_command_scaled = .75 - roll_PID - .1*pitch_PID;
+s3_command_scaled = .5 + .2*pitch_PID;
+}
+// Flight mode 3 (Forward Flight)
+if (channel_6_pwm < 1300) {
+maxRoll = 150;
+maxPitch = 150;
+maxYaw = 150;
+m1_command_scaled = thro_des + yaw_PID;
+m2_command_scaled = thro_des - yaw_PID;
+s1_command_scaled = 1 + roll_PID;
+s2_command_scaled = 1 - roll_PID;
+s3_command_scaled = .5 + pitch_PID;
+}
+
 
 }
 
